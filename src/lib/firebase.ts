@@ -9,9 +9,9 @@ import { getFirestore } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: "AIzaSyBbhS_4ATUQ4y54ze2Lp133gMMqTA_Fsu0",
-  authDomain: "quckchat-dev-ed7a0.firebaseapp.com",
-  projectId: "quckchat-dev-ed7a0",
-  storageBucket: "quckchat-dev-ed7a0.firebasestorage.app",
+  authDomain: "quckapp-dev-ed7a0.firebaseapp.com",
+  projectId: "quckapp-dev-ed7a0",
+  storageBucket: "quckapp-dev-ed7a0.firebasestorage.app",
   messagingSenderId: "785904681848",
   appId: "1:785904681848:web:84ca2d0df42783e0263e8d",
   measurementId: "G-GBGDP1BBPB"
