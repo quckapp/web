@@ -3,7 +3,8 @@ import { AuthProvider } from './contexts/AuthContext';
 import PrivateRoute from './components/PrivateRoute';
 import Login from './components/Auth/Login';
 import Signup from './components/Auth/Signup';
-import Dashboard from './pages/Dashboard';
+import Chat from './pages/Chat';
+import Settings from './pages/Settings';
 
 function App() {
   return (
@@ -16,7 +17,23 @@ function App() {
             path="/"
             element={
               <PrivateRoute>
-                <Dashboard />
+                <Chat />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/chat/:conversationId"
+            element={
+              <PrivateRoute>
+                <Chat />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/settings"
+            element={
+              <PrivateRoute>
+                <Settings />
               </PrivateRoute>
             }
           />

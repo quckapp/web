@@ -2,35 +2,35 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { Mail, Lock, User, UserPlus, AlertCircle } from 'lucide-react';
-import SocialLoginButtons from './SocialLoginButtons';
-import AuthDivider from './AuthDivider';
 
 export default function Signup() {
-  const [name, setName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { signup, loginWithGoogle, loginWithGithub, loginWithFacebook } = useAuth();
+  const { signup, clearError } = useAuth();
   const navigate = useNavigate();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
+    clearError();
 
     if (password !== confirmPassword) {
       return setError('Passwords do not match');
     }
 
-    if (password.length < 6) {
-      return setError('Password must be at least 6 characters');
+    if (password.length < 8) {
+      return setError('Password must be at least 8 characters');
     }
 
     setLoading(true);
 
     try {
-      await signup(email, password, name);
+      await signup(email, password, firstName, lastName);
       navigate('/');
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to create account');
@@ -40,7 +40,7 @@ export default function Signup() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4">
+    <div className="min-h-screen flex items-center justify-center px-4 bg-gray-50">
       <div className="max-w-md w-full">
         <div className="bg-white rounded-2xl shadow-xl p-8">
           <div className="text-center mb-8">
@@ -48,7 +48,7 @@ export default function Signup() {
               <UserPlus className="w-8 h-8 text-indigo-600" />
             </div>
             <h1 className="text-2xl font-bold text-gray-900">Create account</h1>
-            <p className="text-gray-500 mt-2">Start managing your tasks today</p>
+            <p className="text-gray-500 mt-2">Join Chat and start messaging</p>
           </div>
 
           {error && (
@@ -58,30 +58,34 @@ export default function Signup() {
             </div>
           )}
 
-          <SocialLoginButtons
-            onGoogleLogin={loginWithGoogle}
-            onGithubLogin={loginWithGithub}
-            onFacebookLogin={loginWithFacebook}
-            onError={setError}
-            disabled={loading}
-          />
-
-          <AuthDivider />
-
           <form onSubmit={handleSubmit} className="space-y-5">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Name
-              </label>
-              <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  First Name
+                </label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <input
+                    type="text"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    className="w-full pl-11 pr-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                    placeholder="John"
+                    required
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Last Name
+                </label>
                 <input
                   type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="w-full pl-11 pr-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-                  placeholder="Your name"
-                  required
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                  placeholder="Doe"
                 />
               </div>
             </div>
@@ -114,7 +118,7 @@ export default function Signup() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full pl-11 pr-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-                  placeholder="At least 6 characters"
+                  placeholder="At least 8 characters"
                   required
                 />
               </div>
@@ -135,6 +139,24 @@ export default function Signup() {
                   required
                 />
               </div>
+            </div>
+
+            <div className="flex items-start">
+              <input
+                type="checkbox"
+                required
+                className="w-4 h-4 mt-0.5 text-indigo-600 rounded focus:ring-indigo-500"
+              />
+              <span className="ml-2 text-sm text-gray-600">
+                I agree to the{' '}
+                <a href="#" className="text-indigo-600 hover:text-indigo-700">
+                  Terms of Service
+                </a>{' '}
+                and{' '}
+                <a href="#" className="text-indigo-600 hover:text-indigo-700">
+                  Privacy Policy
+                </a>
+              </span>
             </div>
 
             <button

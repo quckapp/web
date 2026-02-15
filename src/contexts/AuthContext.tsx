@@ -1,65 +1,18 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import type { User, AuthProvider as FirebaseAuthProvider } from 'firebase/auth';
-import {
-  onAuthStateChanged,
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  signOut,
-  updateProfile,
-  signInWithPopup,
-} from 'firebase/auth';
-import {
-  auth,
-  googleProvider,
-  githubProvider,
-  facebookProvider,
-} from '../lib/firebase';
-
-// Helper to format Firebase auth errors into user-friendly messages
-function getAuthErrorMessage(error: unknown): string {
-  if (error && typeof error === 'object' && 'code' in error) {
-    const code = (error as { code: string }).code;
-    switch (code) {
-      case 'auth/account-exists-with-different-credential':
-        return 'An account already exists with the same email but different sign-in credentials. Try signing in with a different method.';
-      case 'auth/popup-closed-by-user':
-        return 'Sign-in popup was closed before completing authentication.';
-      case 'auth/popup-blocked':
-        return 'Sign-in popup was blocked by the browser. Please allow popups for this site.';
-      case 'auth/cancelled-popup-request':
-        return 'Authentication was cancelled.';
-      case 'auth/network-request-failed':
-        return 'Network error. Please check your internet connection.';
-      case 'auth/user-disabled':
-        return 'This account has been disabled.';
-      case 'auth/operation-not-allowed':
-        return 'This sign-in method is not enabled. Please contact support.';
-      case 'auth/invalid-credential':
-        return 'Invalid email or password. Please try again.';
-      case 'auth/user-not-found':
-        return 'No account found with this email address.';
-      case 'auth/wrong-password':
-        return 'Incorrect password. Please try again.';
-      case 'auth/email-already-in-use':
-        return 'An account with this email already exists.';
-      case 'auth/weak-password':
-        return 'Password is too weak. Please use a stronger password.';
-      default:
-        return 'An error occurred during sign-in. Please try again.';
-    }
-  }
-  return 'An unexpected error occurred. Please try again.';
-}
+import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
+import authService, { AuthUser, TwoFactorRequired, ApiError } from '../services/authService';
+import { tokenStorage } from '../services/api';
 
 interface AuthContextType {
-  currentUser: User | null;
+  currentUser: AuthUser | null;
   loading: boolean;
+  error: string | null;
+  twoFactorPending: { tempToken: string } | null;
   login: (email: string, password: string) => Promise<void>;
-  signup: (email: string, password: string, name: string) => Promise<void>;
+  verifyTwoFactor: (code: string) => Promise<void>;
+  cancelTwoFactor: () => void;
+  signup: (email: string, password: string, firstName?: string, lastName?: string) => Promise<void>;
   logout: () => Promise<void>;
-  loginWithGoogle: () => Promise<void>;
-  loginWithGithub: () => Promise<void>;
-  loginWithFacebook: () => Promise<void>;
+  clearError: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -72,65 +25,148 @@ export function useAuth() {
   return context;
 }
 
+// Helper to check if error is ApiError
+function isApiError(error: unknown): error is ApiError {
+  return typeof error === 'object' && error !== null && 'message' in error;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [twoFactorPending, setTwoFactorPending] = useState<{ tempToken: string } | null>(null);
 
-  async function signup(email: string, password: string, name: string) {
-    const result = await createUserWithEmailAndPassword(auth, email, password);
-    await updateProfile(result.user, { displayName: name });
-  }
-
-  async function login(email: string, password: string) {
-    await signInWithEmailAndPassword(auth, email, password);
-  }
-
-  async function logout() {
-    await signOut(auth);
-  }
-
-  async function loginWithGoogle() {
-    try {
-      await signInWithPopup(auth, googleProvider);
-    } catch (error) {
-      throw new Error(getAuthErrorMessage(error));
-    }
-  }
-
-  async function loginWithGithub() {
-    try {
-      await signInWithPopup(auth, githubProvider);
-    } catch (error) {
-      throw new Error(getAuthErrorMessage(error));
-    }
-  }
-
-  async function loginWithFacebook() {
-    try {
-      await signInWithPopup(auth, facebookProvider);
-    } catch (error) {
-      throw new Error(getAuthErrorMessage(error));
-    }
-  }
-
+  // Initialize auth state from stored tokens
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setCurrentUser(user);
+    const initializeAuth = async () => {
+      if (authService.isAuthenticated()) {
+        try {
+          const user = await authService.getCurrentUser();
+          setCurrentUser(user);
+        } catch {
+          // Token might be expired, try to refresh
+          try {
+            const response = await authService.refreshToken();
+            setCurrentUser(response.user);
+          } catch {
+            // Refresh failed, clear tokens
+            tokenStorage.clearTokens();
+          }
+        }
+      }
       setLoading(false);
-    });
+    };
 
-    return unsubscribe;
+    initializeAuth();
+  }, []);
+
+  // Set up token refresh interval
+  useEffect(() => {
+    if (!currentUser) return;
+
+    // Refresh token every 14 minutes (assuming 15 min token expiry)
+    const refreshInterval = setInterval(async () => {
+      try {
+        await authService.refreshToken();
+      } catch {
+        // If refresh fails, log out
+        setCurrentUser(null);
+        tokenStorage.clearTokens();
+      }
+    }, 14 * 60 * 1000);
+
+    return () => clearInterval(refreshInterval);
+  }, [currentUser]);
+
+  const clearError = useCallback(() => {
+    setError(null);
+  }, []);
+
+  const login = useCallback(async (email: string, password: string) => {
+    setError(null);
+    try {
+      const response = await authService.login({ email, password });
+
+      // Check if 2FA is required
+      if ('twoFactorRequired' in response && response.twoFactorRequired) {
+        const twoFaResponse = response as TwoFactorRequired;
+        setTwoFactorPending({ tempToken: twoFaResponse.tempToken });
+        return;
+      }
+
+      setCurrentUser(response.user);
+    } catch (err) {
+      const message = isApiError(err) ? err.message : 'Failed to sign in';
+      setError(message);
+      throw new Error(message);
+    }
+  }, []);
+
+  const verifyTwoFactor = useCallback(async (code: string) => {
+    if (!twoFactorPending) {
+      throw new Error('No 2FA verification pending');
+    }
+
+    setError(null);
+    try {
+      const response = await authService.verifyTwoFactor(twoFactorPending.tempToken, code);
+      setCurrentUser(response.user);
+      setTwoFactorPending(null);
+    } catch (err) {
+      const message = isApiError(err) ? err.message : 'Invalid verification code';
+      setError(message);
+      throw new Error(message);
+    }
+  }, [twoFactorPending]);
+
+  const cancelTwoFactor = useCallback(() => {
+    setTwoFactorPending(null);
+    setError(null);
+  }, []);
+
+  const signup = useCallback(async (
+    email: string,
+    password: string,
+    firstName?: string,
+    lastName?: string
+  ) => {
+    setError(null);
+    try {
+      const response = await authService.register({
+        email,
+        password,
+        firstName,
+        lastName,
+      });
+      setCurrentUser(response.user);
+    } catch (err) {
+      const message = isApiError(err) ? err.message : 'Failed to create account';
+      setError(message);
+      throw new Error(message);
+    }
+  }, []);
+
+  const logout = useCallback(async () => {
+    try {
+      await authService.logout();
+    } finally {
+      setCurrentUser(null);
+      setTwoFactorPending(null);
+      setError(null);
+    }
   }, []);
 
   const value = {
     currentUser,
     loading,
+    error,
+    twoFactorPending,
     login,
+    verifyTwoFactor,
+    cancelTwoFactor,
     signup,
     logout,
-    loginWithGoogle,
-    loginWithGithub,
-    loginWithFacebook,
+    clearError,
   };
 
   return (
