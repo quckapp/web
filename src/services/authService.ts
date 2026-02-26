@@ -52,7 +52,7 @@ const authService = {
   async login(data: LoginRequest): Promise<AuthResponse | TwoFactorRequired> {
     try {
       const response = await authApi.post<AuthResponse | TwoFactorRequired>(
-        '/api/auth/v1/login',
+        '/api/v1/auth/login',
         data
       );
 
@@ -74,7 +74,7 @@ const authService = {
    */
   async verifyTwoFactor(tempToken: string, code: string): Promise<AuthResponse> {
     try {
-      const response = await authApi.post<AuthResponse>('/api/auth/v1/login/2fa', {
+      const response = await authApi.post<AuthResponse>('/api/v1/auth/login/2fa', {
         tempToken,
         code,
       });
@@ -90,7 +90,7 @@ const authService = {
    */
   async register(data: RegisterRequest): Promise<AuthResponse> {
     try {
-      const response = await authApi.post<AuthResponse>('/api/auth/v1/register', data);
+      const response = await authApi.post<AuthResponse>('/api/v1/auth/register', data);
       tokenStorage.setTokens(response.data.accessToken, response.data.refreshToken);
       return response.data;
     } catch (error) {
@@ -103,7 +103,7 @@ const authService = {
    */
   async logout(): Promise<void> {
     try {
-      await authApi.post('/api/auth/v1/logout');
+      await authApi.post('/api/v1/auth/logout');
     } catch {
       // Ignore errors on logout - clear tokens anyway
     } finally {
@@ -121,7 +121,7 @@ const authService = {
     }
 
     try {
-      const response = await authApi.post<AuthResponse>('/api/auth/v1/token/refresh', {
+      const response = await authApi.post<AuthResponse>('/api/v1/auth/token/refresh', {
         refreshToken,
       });
       tokenStorage.setTokens(response.data.accessToken, response.data.refreshToken);
@@ -137,7 +137,7 @@ const authService = {
    */
   async getCurrentUser(): Promise<AuthUser> {
     try {
-      const response = await authApi.get<AuthUser>('/api/auth/v1/me');
+      const response = await authApi.get<AuthUser>('/api/v1/auth/me');
       return response.data;
     } catch (error) {
       throw parseApiError(error);
@@ -149,7 +149,7 @@ const authService = {
    */
   async getSessions(): Promise<Session[]> {
     try {
-      const response = await authApi.get<Session[]>('/api/auth/v1/sessions');
+      const response = await authApi.get<Session[]>('/api/v1/auth/sessions');
       return response.data;
     } catch (error) {
       throw parseApiError(error);
@@ -161,7 +161,7 @@ const authService = {
    */
   async revokeSession(sessionId: string): Promise<void> {
     try {
-      await authApi.delete(`/api/auth/v1/sessions/${sessionId}`);
+      await authApi.delete(`/api/v1/auth/sessions/${sessionId}`);
     } catch (error) {
       throw parseApiError(error);
     }
@@ -172,7 +172,7 @@ const authService = {
    */
   async revokeAllSessions(): Promise<void> {
     try {
-      await authApi.delete('/api/auth/v1/sessions');
+      await authApi.delete('/api/v1/auth/sessions');
     } catch (error) {
       throw parseApiError(error);
     }

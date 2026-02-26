@@ -104,7 +104,7 @@ const handleResponseError = async (error: AxiosError) => {
     }
 
     try {
-      const response = await authApi.post('/api/auth/v1/token/refresh', {
+      const response = await authApi.post('/api/v1/auth/token/refresh', {
         refreshToken,
       });
 
